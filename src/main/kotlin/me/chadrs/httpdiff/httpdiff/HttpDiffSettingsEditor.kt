@@ -22,10 +22,12 @@ class HttpDiffSettingsEditor(private val project: Project) : SettingsEditor<Http
     private val httpFileField = TextFieldWithBrowseButton()
     private val env1Field = HttpEnvironmentComboBox(this)
     private val env2Field = HttpEnvironmentComboBox(this)
-    private val reqField = HttpRequestComboBox() // TODO: this does not seem to notice when its changed
+    private val reqField = HttpRequestComboBox()
 
     override fun resetEditorFrom(config: HttpDiffRunConfiguration) {
-        println("reset editor form")
+        // don't trigger updates while we programmatically set things
+        httpFileField.textField.document.removeDocumentListener(textChangedListener)
+
         val file = HttpRequestRunConfiguration.findFileByPath(project, config.getHttpFilePath())
         httpFileField.textField.text = config.getHttpFilePath()
         env1Field.reset(project, file, config.getFirstEnv())
@@ -36,6 +38,7 @@ class HttpDiffSettingsEditor(private val project: Project) : SettingsEditor<Http
         } else {
             reqField.isEnabled = false
         }
+        httpFileField.textField.document.addDocumentListener(textChangedListener)
     }
 
     override fun applyEditorTo(config: HttpDiffRunConfiguration) {
@@ -48,29 +51,29 @@ class HttpDiffSettingsEditor(private val project: Project) : SettingsEditor<Http
 
     override fun createEditor(): JComponent {
         httpFileField.addBrowseFolderListener(
-            null as String?,
-            null as String?,
             project,
             FileChooserDescriptorFactory.createSingleFileNoJarsDescriptor()
         )
-        httpFileField.textField.document.addDocumentListener(object : DocumentAdapter() {
-            override fun textChanged(doc: DocumentEvent) {
-                val file = HttpRequestRunConfiguration.findFileByPath(project, httpFileField.textField.text)
-                env1Field.reset(project, file, null)
-                env2Field.reset(project, file, null)
-                if (file is HttpRequestPsiFile) {
-                    reqField.reset(file, reqField.selectedIndex, reqField.selectedRequestIdentifier)
-                    reqField.isEnabled = true
-                } else {
-                    reqField.isEnabled = false
-                }
-            }
-        })
+        httpFileField.textField.document.addDocumentListener(textChangedListener)
         return FormBuilder.createFormBuilder()
             .addLabeledComponent("File", httpFileField)
             .addLabeledComponent("First environment", env1Field)
             .addLabeledComponent("Second environment", env2Field)
             .addLabeledComponent("Request", reqField).panel
+    }
+
+    private val textChangedListener = object : DocumentAdapter() {
+        override fun textChanged(e: DocumentEvent) {
+            val file = HttpRequestRunConfiguration.findFileByPath(project, httpFileField.textField.text)
+            env1Field.reset(project, file, null)
+            env2Field.reset(project, file, null)
+            if (file is HttpRequestPsiFile) {
+                reqField.reset(file, reqField.selectedIndex, reqField.selectedRequestIdentifier)
+                reqField.isEnabled = true
+            } else {
+                reqField.isEnabled = false
+            }
+        }
     }
 
 }

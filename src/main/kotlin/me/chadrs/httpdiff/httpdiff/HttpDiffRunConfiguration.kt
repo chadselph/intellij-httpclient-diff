@@ -7,14 +7,21 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.httpClient.http.request.HttpRequestPsiFile
-import com.intellij.httpClient.http.request.HttpRequestVariableSubstitutorImpl
+import com.intellij.httpClient.http.request.HttpRequestVariableSubstitutionKey
+import com.intellij.httpClient.http.request.HttpRequestVariableSubstitutor
 import com.intellij.httpClient.http.request.environment.HttpRequestEnvironment
 import com.intellij.httpClient.http.request.run.HttpRequestNotifications
-import com.intellij.httpClient.http.request.run.HttpRunRequestInfo
 import com.intellij.httpClient.http.request.run.config.HttpRequestRunConfiguration
+import com.intellij.httpClient.http.request.run.info.HttpRunRequestInfo
+import com.intellij.httpClient.http.request.run.info.createHttpRunRequestInfo
+import com.intellij.httpClient.http.request.substitution.HttpEnvironmentContextProvider
+import com.intellij.httpClient.http.request.substitution.HttpRequestVariableRootSubstitutor
+import com.intellij.httpClient.http.request.substitutor.HttpRequestVariableSessionSubstitutor
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
-import com.intellij.refactoring.suggested.createSmartPointer
+import com.intellij.openapi.util.Condition
+import com.intellij.psi.PsiElement
+import com.intellij.psi.createSmartPointer
 
 class HttpDiffRunConfiguration(project: Project, factory: ConfigurationFactory?, name: String?) :
     RunConfigurationBase<HttpDiffConfigOptions>(project, factory, name) {
@@ -31,7 +38,7 @@ class HttpDiffRunConfiguration(project: Project, factory: ConfigurationFactory?,
                 "Failed to run requests",
                 "Cannot find requests in ${options.getHttpFilePath()}"
             )
-            return null;
+            return null
         }
     }
 
@@ -49,13 +56,13 @@ class HttpDiffRunConfiguration(project: Project, factory: ConfigurationFactory?,
 
     fun setHttpFilePath(filePath: String) = options.setHttpFilePath(filePath)
 
-    fun getRequestIndex() = options.getSelectedRequestIndex()
+    fun getRequestIndex() = options.getRequestIndex()
 
-    fun setRequestIndex(selectedRequestIndex: Int) = options.setSelectedRequestIndex(selectedRequestIndex)
+    fun setRequestIndex(selectedRequestIndex: Int) = options.setRequestIndex(selectedRequestIndex)
 
-    fun getRequestIdentifier(): String? = options.getSelectedRequestIdentifier()
+    fun getRequestIdentifier(): String? = options.getRequestIdentifier()
     fun setRequestIdentifier(selectedRequestIdentifier: String?) =
-        options.setSelectedRequestIdentifier(selectedRequestIdentifier)
+        options.setRequestIdentifier(selectedRequestIdentifier)
 
 
     override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> {
@@ -74,9 +81,41 @@ class HttpDiffRunConfiguration(project: Project, factory: ConfigurationFactory?,
         val file = HttpRequestRunConfiguration.findFileByPath(project, options.getHttpFilePath())
         return if (file != null && file is HttpRequestPsiFile) {
             val req = HttpRequestRunConfiguration.findRequestInFile(file, toHttpSettings())
-            HttpRunRequestInfo.create(
-                req, req.createSmartPointer(), HttpRequestVariableSubstitutorImpl.create(project, env, file)
+            val substitutor = HttpRequestVariableRootSubstitutor(
+                HttpEnvironmentContextProvider(listOf(env), true, env, true)
             )
-        } else null;
+            createHttpRunRequestInfo(
+                req, req.createSmartPointer(), object : HttpRequestVariableSessionSubstitutor {
+
+                    override fun getSessionProvider(): (String) -> Any? {
+                        // No idea what this is supposed to do!
+                        return { _: String -> null }
+                    }
+
+                    override fun getValue(p0: PsiElement): String {
+                        return substitutor.getValue(p0)
+                    }
+
+                    override fun getValue(p0: PsiElement, p1: Condition<in PsiElement>): String {
+                        return substitutor.getValue(p0, p1)
+                    }
+
+                    override fun getVariableValue(
+                        p0: String?,
+                        p1: String?,
+                        p2: Project,
+                        p3: HttpRequestVariableSubstitutionKey?
+                    ): String? {
+                        return substitutor.getVariableValue(p0, p1, p2, p3)
+                    }
+
+                    override fun invalidVariablesAware(p0: Boolean): HttpRequestVariableSubstitutor {
+                        return substitutor.invalidVariablesAware(p0)
+                    }
+
+                    override fun setSessionVariables(newVars: Map<String, Any?>) {}
+                }
+            )
+        } else null
     }
 }

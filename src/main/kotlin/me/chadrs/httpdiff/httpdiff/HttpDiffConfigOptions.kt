@@ -8,8 +8,8 @@ class HttpDiffConfigOptions : RunConfigurationOptions() {
     private val firstEnv: StoredProperty<String?> = string("").provideDelegate(this, "firstEnv")
     private val secondEnv: StoredProperty<String?> = string("").provideDelegate(this, "secondEnv")
     private val httpFilePath: StoredProperty<String?> = string("").provideDelegate(this, "httpFilePath")
-    private val selectedRequestIndex: StoredProperty<Int> = property(1).provideDelegate(this, "requestIndex")
-    private val selectedRequestIdentifier: StoredProperty<String?> =
+    private val requestIndex: StoredProperty<Int> = property(1).provideDelegate(this, "requestIndex")
+    private val requestIdentifier: StoredProperty<String?> =
         string("").provideDelegate(this, "requestIdentifier")
 
     fun getFirstEnv(): String? = firstEnv.getValue(this)
@@ -21,11 +21,11 @@ class HttpDiffConfigOptions : RunConfigurationOptions() {
     fun getHttpFilePath() = httpFilePath.getValue(this)
     fun setHttpFilePath(toValue: String?) = httpFilePath.setValue(this, toValue)
 
-    fun getSelectedRequestIndex() = selectedRequestIndex.getValue(this)
-    fun setSelectedRequestIndex(index: Int) = selectedRequestIndex.setValue(this, index)
+    fun getRequestIndex() = requestIndex.getValue(this)
+    fun setRequestIndex(index: Int) = requestIndex.setValue(this, index)
 
-    fun getSelectedRequestIdentifier(): String? = selectedRequestIdentifier.getValue(this)
-    fun setSelectedRequestIdentifier(requestIdentifier: String?) =
-        selectedRequestIdentifier.setValue(this, requestIdentifier)
+    fun getRequestIdentifier(): String? = requestIdentifier.getValue(this)
+    fun setRequestIdentifier(toValue: String?) =
+        requestIdentifier.setValue(this, toValue)
 
 }

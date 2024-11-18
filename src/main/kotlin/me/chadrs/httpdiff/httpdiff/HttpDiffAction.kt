@@ -1,13 +1,9 @@
 package me.chadrs.httpdiff.httpdiff
 
-import com.intellij.httpClient.http.request.HttpRequestPsiFile
-import com.intellij.httpClient.http.request.run.HttpRequestExecutorExtension
-import com.intellij.httpClient.http.request.run.RunHttpRequestAction.RunRequestWithEnvAction
-import com.intellij.httpClient.http.request.run.config.HttpRequestFileExecutionConfig
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.psi.*
+import com.intellij.psi.PsiFile
 
 // I don't think this will work :(
 class HttpDiffAction : AnAction("HttpDiff") {
