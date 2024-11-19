@@ -11,12 +11,7 @@ import com.intellij.execution.runners.ProgramRunner
 import com.intellij.execution.testframework.sm.runner.SMTRunnerConsoleProperties
 import com.intellij.httpClient.http.request.environment.HttpRequestEnvironment
 import com.intellij.httpClient.http.request.run.HttpClientRequestProcessHandler
-import com.intellij.httpClient.http.request.run.HttpRequestHistoryManager
-import com.intellij.httpClient.http.request.run.HttpRequestPostProcessor
-import com.intellij.httpClient.http.request.run.HttpRequestResponseFileResult
 import com.intellij.httpClient.http.request.run.console.HttpResponseConsole
-import com.intellij.httpClient.http.request.run.controller.HttpClientExecutionController
-import com.intellij.httpClient.http.request.run.info.HttpRunRequestInfo
 import com.intellij.httpClient.http.request.run.test.HttpMultiResponseConsole
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
@@ -33,6 +28,8 @@ class RunHtpDiffRunProfileState(
     private val project: Project,
     private val runConfig: HttpDiffRunConfiguration
 ) : RunProfileState {
+
+
     override fun execute(executor: Executor?, runner: ProgramRunner<*>): ExecutionResult? {
         val smtRunnerConsoleProperties = SMTRunnerConsoleProperties(runConfig, "HTTP", executor!!)
         val processHandler = HttpClientRequestProcessHandler(true)
@@ -40,62 +37,20 @@ class RunHtpDiffRunProfileState(
             project, smtRunnerConsoleProperties, processHandler, null
         )
 
-        val runReq1 = runConfig.getRequestInfo(env1)
-        val runReq2 = runConfig.getRequestInfo(env2)
-
-        var respFile1: VirtualFile? = null
-        var respFile2: VirtualFile? = null
-
-        if (runReq1 != null && runReq2 != null) {
-            service<HttpDiffApplicationService>().runHttpRequests(
-                createHttpClientExecutionController(
-                    runReq1, processHandler, console
-                ) { respFile1 = getFileFromResp(it) },
-                createHttpClientExecutionController(
-                    runReq2, processHandler, console
-                ) { respFile2 = getFileFromResp(it) }
-            ) {
-                processHandler.onRunFinished()
+        val job = service<HttpDiffApplicationService>().runHttpRequests(
+            env1,
+            env2,
+            runConfig, project, processHandler, console
+        ) { respFile1: VirtualFile?, respFile2: VirtualFile? ->
+            processHandler.onRunFinished()
+            if (respFile1 != null && respFile2 != null) {
                 ApplicationManager.getApplication().invokeLater {
-                    if (respFile1 != null && respFile2 != null) launchDiffWindow(respFile1!!, respFile2!!)
+                    launchDiffWindow(respFile1, respFile2)
                 }
             }
-            return DefaultExecutionResult(console.console, processHandler)
-        } else {
-            return null; // TODO find out how to surface a better error
         }
+        return job?.let { DefaultExecutionResult(console.console, processHandler) }
 
-    }
-
-    private fun createHttpClientExecutionController(
-        info: HttpRunRequestInfo,
-        processHandler: HttpClientRequestProcessHandler,
-        console: HttpResponseConsole,
-        httpRequestPostProcessor: HttpRequestPostProcessor,
-    ): HttpClientExecutionController {
-
-        val id: String = info.toString() // TODO: what should this id be?
-
-        return HttpClientExecutionController(
-            project,
-            info,
-            id,
-            info.requestPointer,
-            processHandler,
-            console,
-            info.responseHandler,
-            { resp ->
-                info.postProcessor.onResponseExecuted(resp)
-                httpRequestPostProcessor.onResponseExecuted(resp)
-            },
-            true,
-            {
-                console.onRequestEnd(id)
-            },
-            info.ignoreMessage,
-            runConfig.toHttpSettings(),
-            false
-        )
     }
 
     private fun launchDiffWindow(resp1: VirtualFile, resp2: VirtualFile) {
@@ -109,13 +64,5 @@ class RunHtpDiffRunProfileState(
                 env2.environmentName
             )
         )
-    }
-
-    private fun getFileFromResp(resp: HttpRequestResponseFileResult?): VirtualFile? {
-        return if (resp is HttpRequestResponseFileResult.ExactFile && resp.fileName != null) {
-            HttpRequestHistoryManager.findFile(project, resp.fileName!!, true)
-        } else {
-            null
-        }
     }
 }
