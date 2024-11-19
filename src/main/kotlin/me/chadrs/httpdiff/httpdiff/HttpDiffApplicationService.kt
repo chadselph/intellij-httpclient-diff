@@ -7,6 +7,7 @@ import com.intellij.httpClient.http.request.run.HttpRequestResponseFileResult
 import com.intellij.httpClient.http.request.run.console.HttpResponseConsole
 import com.intellij.httpClient.http.request.run.controller.HttpClientExecutionController
 import com.intellij.httpClient.http.request.run.info.HttpRunRequestInfo
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -15,7 +16,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 // Following this guide https://plugins.jetbrains.com/docs/intellij/launching-coroutines.html#using-runblockingcancellable
 @Service
@@ -40,15 +40,18 @@ class HttpDiffApplicationService(private val cs: CoroutineScope) {
                     runReq1,
                     processHandler,
                     console,
-                    UUID.randomUUID().toString()
+                    runReq1.makeName(env1)
                 ).await()
+                // it would be nice to run these in parallel, but it causes some issues with the intellij client,
+                // such as duplicating the resulting file name since it's based on the timestamp
+                // So, we just do them sequentially for now, until I can figure out how to overcome these.
                 val resp2 = createHttpClientExecutionController(
                     project,
                     runConfig,
                     runReq2,
                     processHandler,
                     console,
-                    UUID.randomUUID().toString()
+                    runReq2.makeName(env2)
                 ).await()
                 onBothFinished.invoke(resp1, resp2)
             }
@@ -74,12 +77,16 @@ class HttpDiffApplicationService(private val cs: CoroutineScope) {
             console,
             info.responseHandler,
             { resp ->
-                info.postProcessor.onResponseExecuted(resp)
-                completer.complete(getFileFromResp(resp, project))
+                ApplicationManager.getApplication().invokeLater {
+                    info.postProcessor.onResponseExecuted(resp)
+                    completer.complete(getFileFromResp(resp, project))
+                }
             },
             true,
             {
-                console.onRequestEnd(id)
+                ApplicationManager.getApplication().invokeLater {
+                    console.onRequestEnd(id)
+                }
             },
             info.ignoreMessage,
             runConfig.toHttpSettings(),
@@ -94,5 +101,10 @@ class HttpDiffApplicationService(private val cs: CoroutineScope) {
         } else {
             null
         }
+    }
+
+    private fun HttpRunRequestInfo.makeName(env: HttpRequestEnvironment): String {
+        return """[${env.environmentName}] ${this.requestMethod} ${this.getRequestURL() ?: ""}"""
+
     }
 }
